@@ -1,2 +1,2 @@
 # MSSorteos
- web app for lottery and raffles.
+ web app for lottery and raffles

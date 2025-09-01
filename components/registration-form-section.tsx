@@ -40,14 +40,29 @@ export function RegistrationFormSection() {
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    const maxFileSize = 3 * 1024 * 1024; // 3 MB en bytes
+
+    // Validación de tamaño en el frontend
+    if (file && file.size > maxFileSize) {
+      toast({
+        title: "Archivo demasiado grande",
+        description: "El comprobante de pago no puede superar los 3 MB.",
+        variant: "destructive",
+      })
+      setProofFile(null)
+      e.target.value = ''
+      return
+    }
+
     setProofFile(file || null)
-  }, [])
+  }, [toast])
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault()
       setIsSubmitting(true)
 
+      // Paso 1: Validaciones del formulario.
       const errors = validateFormData(formData)
       if (errors.length > 0) {
         toast({
@@ -78,24 +93,64 @@ export function RegistrationFormSection() {
         setIsSubmitting(false)
         return
       }
+      
+      // Lógica de envío real al backend.
+      const formToSend = new FormData()
+      
+      // Paso 2: Asegúrate de que los nombres de los campos coincidan con los de tu backend.
+      // Aquí mapeamos los nombres del estado a los nombres de las columnas en Supabase.
+      formToSend.append('nombre_comprador', formData.buyerName)
+      formToSend.append('email', formData.email)
+      formToSend.append('telefono', formData.phone)
+      formToSend.append('numero_referencia', formData.referenceNumber)
+      formToSend.append('tickets_comprados', formData.ticketCount)
+      
+      // El nombre del campo 'comprobante_pago' debe coincidir con el del backend.
+      formToSend.append('comprobante_pago', proofFile)
 
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      try {
+        // Paso 3: Realizamos la llamada a la API Route.
+        const response = await fetch('/api/submit-form', {
+          method: 'POST',
+          body: formToSend,
+        })
+        
+        const data = await response.json()
 
-      toast({
-        title: "Registro enviado",
-        description: "Tu participación ha sido registrada exitosamente",
-      })
+        if (!response.ok) {
+          // Si la respuesta no es OK, significa que hubo un error.
+          throw new Error(data.error || 'Error desconocido al enviar el formulario.')
+        }
 
-      setFormData({
-        buyerName: "",
-        email: "",
-        phone: "",
-        referenceNumber: "",
-        ticketCount: "0",
-      })
-      setProofFile(null)
-      setTermsAccepted(false)
-      setIsSubmitting(false)
+        // Paso 4: Si la respuesta es exitosa, mostramos un mensaje de éxito
+        // y reseteamos el formulario.
+        toast({
+          title: "Registro enviado",
+          description: "Tu participación ha sido registrada exitosamente",
+        })
+        
+        setFormData({
+          buyerName: "",
+          email: "",
+          phone: "",
+          referenceNumber: "",
+          ticketCount: "0",
+        })
+        setProofFile(null)
+        setTermsAccepted(false)
+
+      } catch (error) {
+        // Paso 5: Manejamos cualquier error que ocurra durante la llamada.
+        console.error('Error al enviar el formulario:', error)
+        toast({
+          title: "Error en el registro",
+          description: error instanceof Error ? error.message : "Ocurrió un error inesperado.",
+          variant: "destructive",
+        })
+      } finally {
+        // Paso 6: Independientemente del resultado, desactivamos el estado de envío.
+        setIsSubmitting(false)
+      }
     },
     [formData, toast, termsAccepted, proofFile],
   )

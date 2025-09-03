@@ -1,7 +1,17 @@
 /**
- * Registration Form Section Component
+ * Componente de Sección de Formulario de Registro
  * -------------------------------------------------------
- * Clean registration form with updated terms and conditions
+ * Este componente maneja todo el formulario de registro para el sorteo.
+ * Incluye validación completa, subida de archivos, términos y condiciones,
+ * y redirección a WhatsApp después del envío exitoso.
+ *
+ * Funcionalidades principales:
+ * - Validación de campos obligatorios en tiempo real
+ * - Subida y validación de comprobantes de pago (máximo 3MB)
+ * - Aceptación de términos y condiciones
+ * - Envío de datos a la API y manejo de respuestas
+ * - Redirección automática a WhatsApp tras envío exitoso
+ * - Sistema de notificaciones personalizado (sin alerts del navegador)
  */
 
 "use client"
@@ -15,12 +25,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, Upload } from "lucide-react"
+import { AlertTriangle, Upload, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { validateFormData } from "@/lib/utils"
+import { validateFormData, generateWhatsAppUrl } from "@/lib/utils"
 import type { FormData } from "@/lib/types"
 
 export function RegistrationFormSection() {
+  // Estados principales del formulario
+  // Almacena todos los datos del formulario en un objeto
   const [formData, setFormData] = useState<FormData>({
     buyerName: "",
     email: "",
@@ -28,107 +40,187 @@ export function RegistrationFormSection() {
     referenceNumber: "",
     ticketCount: "0",
   })
+
+  // Estado para el archivo de comprobante de pago
   const [proofFile, setProofFile] = useState<File | null>(null)
+
+  // Estado para controlar si los términos y condiciones fueron aceptados
   const [termsAccepted, setTermsAccepted] = useState(false)
+
+  // Estado para controlar la visibilidad del modal de términos y condiciones
   const [showTermsDialog, setShowTermsDialog] = useState(false)
+
+  // Estado para controlar el estado de envío del formulario (loading)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Estado para almacenar errores de validación específicos
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
+
+  // Hook para mostrar notificaciones toast
   const { toast } = useToast()
 
-  const handleInputChange = useCallback((field: keyof FormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }, [])
+  /**
+   * Función para manejar cambios en los campos de entrada del formulario
+   * Se ejecuta cada vez que el usuario escribe en cualquier campo
+   * @param field - El campo específico que está siendo modificado
+   * @param value - El nuevo valor del campo
+   */
+  const handleInputChange = useCallback(
+    (field: keyof FormData, value: string) => {
+      // Actualizar el estado del formulario con el nuevo valor
+      setFormData((prev) => ({ ...prev, [field]: value }))
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    const maxFileSize = 3 * 1024 * 1024; // 3 MB en bytes
+      // Limpiar errores de validación cuando el usuario empiece a escribir
+      // Esto mejora la experiencia del usuario al dar feedback inmediato
+      if (validationErrors.length > 0) {
+        setValidationErrors([])
+      }
+    },
+    [validationErrors.length],
+  )
 
-    // Validación de tamaño en el frontend
-    if (file && file.size > maxFileSize) {
-      toast({
-        title: "Archivo demasiado grande",
-        description: "El comprobante de pago no puede superar los 3 MB.",
-        variant: "destructive",
-      })
-      setProofFile(null)
-      e.target.value = ''
-      return
-    }
+  /**
+   * Función para manejar la selección y validación de archivos
+   * Valida el tamaño del archivo y muestra errores apropiados
+   * @param e - Evento de cambio del input de archivo
+   */
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      // Obtener el primer archivo seleccionado
+      const file = e.target.files?.[0]
 
-    setProofFile(file || null)
-  }, [toast])
+      // Definir el tamaño máximo permitido (3 MB en bytes)
+      const maxFileSize = 3 * 1024 * 1024 // 3 MB = 3 * 1024 * 1024 bytes
 
+      // Validación de tamaño de archivo
+      if (file && file.size > maxFileSize) {
+        // Calcular el tamaño del archivo en MB para mostrar al usuario
+        const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2)
+
+        // Crear mensaje de error detallado y agregarlo a la lista de errores
+        const errorMessage = `El archivo seleccionado (${fileSizeInMB}MB) supera el límite de 3MB`
+        setValidationErrors([errorMessage])
+
+        // Limpiar el archivo seleccionado
+        setProofFile(null)
+
+        // Resetear el valor del input para permitir seleccionar el mismo archivo nuevamente
+        e.target.value = ""
+        return
+      }
+
+      // Si el archivo es válido, guardarlo en el estado
+      setProofFile(file || null)
+
+      // Limpiar errores de validación cuando se seleccione un archivo válido
+      if (validationErrors.length > 0) {
+        setValidationErrors([])
+      }
+    },
+    [validationErrors.length],
+  )
+
+  /**
+   * Función principal para manejar el envío del formulario
+   * Realiza validación completa, envía datos al servidor y maneja respuestas
+   * @param e - Evento de envío del formulario
+   */
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
+      // Prevenir el comportamiento por defecto del formulario
       e.preventDefault()
+
+      // Activar estado de envío (loading)
       setIsSubmitting(true)
 
-      // Paso 1: Validaciones del formulario.
-      const errors = validateFormData(formData)
-      if (errors.length > 0) {
-        toast({
-          title: "Campos requeridos",
-          description: errors.join(", "),
-          variant: "destructive",
-        })
-        setIsSubmitting(false)
-        return
+      // Limpiar errores previos
+      setValidationErrors([])
+
+      // PASO 1: Recopilar todos los errores de validación
+      const errors: string[] = []
+
+      // Validación de campos de texto obligatorios
+      if (!formData.buyerName.trim()) {
+        errors.push("Nombre del comprador es requerido")
+      }
+      if (!formData.email.trim()) {
+        errors.push("Email es requerido")
+      }
+      if (!formData.phone.trim()) {
+        errors.push("Número de teléfono es requerido")
+      }
+      if (!formData.referenceNumber.trim()) {
+        errors.push("Número de referencia es requerido")
       }
 
+      // Validación del número de tickets
+      if (!formData.ticketCount || formData.ticketCount === "0") {
+        errors.push("Número de tickets debe ser mayor a 0")
+      }
+
+      // Validación del archivo de comprobante
       if (!proofFile) {
-        toast({
-          title: "Comprobante requerido",
-          description: "Debes subir un comprobante de pago para continuar",
-          variant: "destructive",
-        })
+        errors.push("Comprobante de pago es requerido")
+      }
+
+      // Validación de términos y condiciones
+      if (!termsAccepted) {
+        errors.push("Debes aceptar los términos y condiciones")
+      }
+
+      // Validación adicional del email usando función utilitaria
+      const emailErrors = validateFormData(formData)
+      errors.push(...emailErrors)
+
+      // PASO 2: Si hay errores, mostrarlos y detener el envío
+      if (errors.length > 0) {
+        // Establecer errores en el estado para mostrar en la UI
+        setValidationErrors(errors)
+
+        // Desactivar estado de envío
         setIsSubmitting(false)
         return
       }
 
-      if (!termsAccepted) {
-        toast({
-          title: "Términos y condiciones",
-          description: "Debes aceptar los términos y condiciones para continuar",
-          variant: "destructive",
-        })
-        setIsSubmitting(false)
-        return
-      }
-      
-      // Lógica de envío real al backend.
+      // PASO 3: Preparar datos para envío al servidor
+      // Crear FormData para envío multipart (necesario para archivos)
       const formToSend = new FormData()
-      
-      // Paso 2: Asegúrate de que los nombres de los campos coincidan con los de tu backend.
-      // Aquí mapeamos los nombres del estado a los nombres de las columnas en Supabase.
-      formToSend.append('nombre_comprador', formData.buyerName)
-      formToSend.append('email', formData.email)
-      formToSend.append('telefono', formData.phone)
-      formToSend.append('numero_referencia', formData.referenceNumber)
-      formToSend.append('tickets_comprados', formData.ticketCount)
-      
-      // El nombre del campo 'comprobante_pago' debe coincidir con el del backend.
-      formToSend.append('comprobante_pago', proofFile)
+
+      // Mapear los nombres del estado a los nombres esperados por el backend
+      formToSend.append("nombre_comprador", formData.buyerName)
+      formToSend.append("email", formData.email)
+      formToSend.append("telefono", formData.phone)
+      formToSend.append("numero_referencia", formData.referenceNumber)
+      formToSend.append("tickets_comprados", formData.ticketCount)
+
+      // Agregar el archivo de comprobante
+      formToSend.append("comprobante_pago", proofFile!)
 
       try {
-        // Paso 3: Realizamos la llamada a la API Route.
-        const response = await fetch('/api/submit-form', {
-          method: 'POST',
+        // PASO 4: Realizar llamada HTTP al endpoint de la API
+        const response = await fetch("/api/submit-form", {
+          method: "POST",
           body: formToSend,
         })
-        
+
+        // Parsear la respuesta JSON
         const data = await response.json()
 
+        // PASO 5: Manejar respuesta del servidor
         if (!response.ok) {
-          // Si la respuesta no es OK, significa que hubo un error.
-          throw new Error(data.error || 'Error desconocido al enviar el formulario.')
+          // Si la respuesta no es exitosa, mostrar error en la caja de notificación
+          setValidationErrors([data.error || "Error desconocido al enviar el formulario"])
+          setIsSubmitting(false)
+          return
         }
 
-        // Paso 4: Si la respuesta es exitosa, mostramos un mensaje de éxito
-        // y reseteamos el formulario.
+        // PASO 6: Envío exitoso - mostrar mensaje y resetear formulario
         toast({
-          title: "Registro enviado",
-          description: "Tu participación ha sido registrada exitosamente",
+          title: "¡Registro enviado exitosamente!",
+          description: "Tu participación ha sido registrada. Serás redirigido a WhatsApp para soporte.",
         })
-        
+
+        // Resetear todos los estados del formulario
         setFormData({
           buyerName: "",
           email: "",
@@ -138,45 +230,71 @@ export function RegistrationFormSection() {
         })
         setProofFile(null)
         setTermsAccepted(false)
+        setValidationErrors([])
 
+        // PASO 7: Redirección automática a WhatsApp
+        const whatsappMessage =
+          "Gracias por comunicarte con Soporte de Sorteo de Sandoval Miguel; En el transcurso de la próximas 24 horas recibirás los números hacia el correo registrado Gracias por su compra, le deseamos MUCHA SUERTE..."
+        const whatsappUrl = generateWhatsAppUrl("56949077188", whatsappMessage)
+
+        // Delay para que el usuario vea el mensaje de éxito antes de la redirección
+        setTimeout(() => {
+          window.open(whatsappUrl, "_blank", "noopener,noreferrer")
+        }, 1500)
       } catch (error) {
-        // Paso 5: Manejamos cualquier error que ocurra durante la llamada.
-        console.error('Error al enviar el formulario:', error)
-        toast({
-          title: "Error en el registro",
-          description: error instanceof Error ? error.message : "Ocurrió un error inesperado.",
-          variant: "destructive",
-        })
+        // PASO 8: Manejo de errores durante el envío
+        console.error("Error al enviar el formulario:", error)
+        setValidationErrors([
+          error instanceof Error ? error.message : "Ocurrió un error inesperado al procesar tu solicitud.",
+        ])
       } finally {
-        // Paso 6: Independientemente del resultado, desactivamos el estado de envío.
+        // PASO 9: Siempre desactivar el estado de envío al final
         setIsSubmitting(false)
       }
     },
     [formData, toast, termsAccepted, proofFile],
   )
 
+  /**
+   * Función helper para renderizar campos de formulario de manera consistente
+   * IMPORTANTE: noValidate desactiva la validación HTML5 del navegador
+   * @param id - Identificador único del campo
+   * @param label - Etiqueta visible del campo
+   * @param type - Tipo de input HTML
+   * @param placeholder - Texto de placeholder
+   * @param required - Si el campo es obligatorio
+   */
   const renderFormField = (id: keyof FormData, label: string, type = "text", placeholder = "", required = true) => (
     <div className="space-y-1 sm:space-y-2">
+      {/* Etiqueta del campo con indicador de obligatorio */}
       <Label htmlFor={id} className="text-xs font-medium text-white sm:text-sm">
         {label} {required && <span className="text-red-400">*</span>}
       </Label>
+
+      {/* Campo de entrada con estilos responsivos y validación desactivada */}
       <Input
         id={id}
         type={type}
         placeholder={placeholder}
         value={formData[id]}
         onChange={(e) => handleInputChange(id, e.target.value)}
-        required={required}
         className="h-10 bg-gray-700 border-gray-600 text-white focus:border-yellow-400 focus:ring-yellow-400 text-sm sm:h-12 sm:text-base"
       />
     </div>
   )
 
+  /**
+   * Función para renderizar el contenido completo de términos y condiciones
+   * Contiene todas las reglas y condiciones del sorteo
+   */
   const renderTermsAndConditions = () => (
     <div className="space-y-3 sm:space-y-4">
       <h3 className="text-base font-bold text-white sm:text-lg">Términos y Condiciones</h3>
       <div className="text-xs text-gray-300 space-y-2 sm:text-sm sm:space-y-3">
+        {/* Advertencia principal sobre edad mínima */}
         <p className="font-semibold text-red-400">DEBES TENER MÁS DE 18 AÑOS PARA PARTICIPAR</p>
+
+        {/* Lista numerada de términos y condiciones */}
         <ol className="list-decimal list-inside space-y-1 sm:space-y-2">
           <li>La cantidad de números disponibles se detallan en la página de información específica de cada sorteo.</li>
           <li>Los tickets se enviarán en un plazo máximo de 24 horas.</li>
@@ -209,15 +327,40 @@ export function RegistrationFormSection() {
   )
 
   return (
-    <section aria-label="Formulario de registro">
+    <section aria-label="Formulario de registro para sorteo de millones">
       <Card className="border-gray-600 bg-gray-800">
+        {/* Encabezado de la sección */}
         <CardHeader className="text-center pb-4 sm:pb-6">
           <CardTitle className="text-lg font-bold text-white sm:text-xl">¿Ya transferiste?</CardTitle>
           <p className="text-sm text-gray-300 sm:text-base">Llena este formulario:</p>
         </CardHeader>
 
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+          {/* Mostrar errores de validación si existen - REEMPLAZA TODOS LOS ALERTS */}
+          {validationErrors.length > 0 && (
+            <div className="mb-4 p-3 bg-red-900/20 border border-red-400 rounded-lg">
+              <div className="flex items-start gap-2">
+                {/* Icono de alerta */}
+                <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  {/* Título del error */}
+                  <h4 className="text-sm font-medium text-red-400 mb-1">
+                    {validationErrors.length === 1 ? "Error encontrado:" : "Errores encontrados:"}
+                  </h4>
+                  {/* Lista de errores específicos */}
+                  <ul className="text-xs text-red-300 space-y-1">
+                    {validationErrors.map((error, index) => (
+                      <li key={index}>• {error}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Formulario principal con validación HTML5 desactivada */}
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4" noValidate>
+            {/* Campos del formulario usando la función helper */}
             {renderFormField("buyerName", "Nombre del comprador", "text", "Ingresa tu nombre completo")}
             {renderFormField("email", "Email", "email", "tu@email.com")}
             {renderFormField("phone", "Número de teléfono", "tel", "+56 9 1234 5678")}
@@ -228,6 +371,7 @@ export function RegistrationFormSection() {
               "Ingresa el número de referencia de tu transferencia",
             )}
 
+            {/* Advertencia sobre número de referencia */}
             <div className="flex items-start gap-2 p-2 bg-yellow-900/20 border border-yellow-400 rounded-lg sm:p-3">
               <AlertTriangle className="h-3 w-3 text-yellow-400 mt-0.5 flex-shrink-0 sm:h-4 sm:w-4" />
               <p className="text-xs text-yellow-100 sm:text-sm">
@@ -236,12 +380,17 @@ export function RegistrationFormSection() {
               </p>
             </div>
 
+            {/* Sección de subida de comprobante de pago */}
             <div className="space-y-1 sm:space-y-2">
               <Label htmlFor="proof" className="text-xs font-medium text-white sm:text-sm">
                 Comprobante de pago <span className="text-red-400">*</span>
               </Label>
+
               <div className="flex items-center gap-2 sm:gap-3">
+                {/* Input de archivo oculto */}
                 <Input id="proof" type="file" accept="image/*,.pdf" onChange={handleFileChange} className="hidden" />
+
+                {/* Botón personalizado para activar selección de archivo */}
                 <Button
                   type="button"
                   variant="outline"
@@ -251,23 +400,31 @@ export function RegistrationFormSection() {
                   <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
                   Subir comprobante
                 </Button>
+
+                {/* Mostrar nombre del archivo seleccionado */}
                 {proofFile && <span className="text-xs text-green-400 truncate sm:text-sm">✓ {proofFile.name}</span>}
               </div>
-              <p className="text-xs text-red-400">Este campo es obligatorio</p>
+
+              {/* Información sobre requisitos del archivo */}
+              <p className="text-xs text-red-400">Este campo es obligatorio. Tamaño máximo: 3MB</p>
             </div>
 
+            {/* Campo de número de tickets */}
             {renderFormField("ticketCount", "Número de tickets", "number", "0")}
 
+            {/* Sección de términos y condiciones */}
             <div className="flex items-start space-x-2 p-2 bg-yellow-900/20 border border-yellow-400 rounded-lg sm:space-x-3 sm:p-4">
+              {/* Checkbox para aceptar términos */}
               <Checkbox
                 id="terms"
                 checked={termsAccepted}
                 onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
                 className="mt-0.5 sm:mt-1"
               />
+
               <div className="flex-1 min-w-0">
                 <Label htmlFor="terms" className="text-xs text-white cursor-pointer sm:text-sm">
-                  Acepto los{" "}
+                  Acepto los {/* Modal de términos y condiciones */}
                   <Dialog open={showTermsDialog} onOpenChange={setShowTermsDialog}>
                     <DialogTrigger asChild>
                       <button
@@ -282,6 +439,7 @@ export function RegistrationFormSection() {
                       <DialogHeader>
                         <DialogTitle className="text-white text-base sm:text-lg">Términos y Condiciones</DialogTitle>
                       </DialogHeader>
+                      {/* Área scrolleable para términos largos */}
                       <ScrollArea className="h-[60vh] pr-2 sm:pr-4">{renderTermsAndConditions()}</ScrollArea>
                     </DialogContent>
                   </Dialog>{" "}
@@ -290,6 +448,7 @@ export function RegistrationFormSection() {
               </div>
             </div>
 
+            {/* Botón de envío del formulario */}
             <Button
               type="submit"
               disabled={isSubmitting}

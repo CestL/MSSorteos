@@ -1,7 +1,7 @@
 /**
- * Main Raffle Platform Page
+ * Página Principal de la Plataforma de Sorteos
  * -------------------------------------------------------
- * Clean single-page application with optimized logo behavior
+ * Aplicación de página única limpia con comportamiento de logo optimizado
  */
 
 import type { Metadata } from "next"
@@ -13,11 +13,30 @@ import { RegistrationFormSection } from "@/components/registration-form-section"
 import { FooterSection } from "@/components/footer-section"
 
 export const metadata: Metadata = {
-  title: "Sorteo de 3M - Rifa VIP",
+  title: "Sorteo de 3 Millones - Gana Millones en Sorteos VIP | Miguel Sandoval",
   description:
-    "Participa en nuestro sorteo de 3 millones de pesos. Selecciona tus tickets, realiza tu pago y completa tu registro para ganar millones.",
-  keywords: "sorteo, 3 millones, rifa, pesos chilenos, participar, ganar dinero",
+    "Participa en nuestro sorteo de 3 millones de pesos chilenos. Compra tus tickets, realiza tu pago y completa tu registro para ganar millones. Sorteos seguros y confiables con Miguel Sandoval.",
+  keywords:
+    "sorteo, 3 millones, millones, sorteos, rifa, pesos chilenos, participar, ganar dinero, Miguel Sandoval, sorteos VIP, ganar millones, rifas millonarias",
   viewport: "width=device-width, initial-scale=1",
+  openGraph: {
+    title: "Sorteo de 3 Millones - Gana Millones | Miguel Sandoval",
+    description: "Participa en sorteos millonarios y gana 3 millones de pesos. Sorteos seguros y confiables.",
+    type: "website",
+    locale: "es_CL",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sorteo de 3 Millones - Gana Millones",
+    description: "Participa en sorteos millonarios y gana 3 millones de pesos chilenos.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: "https://sorteosmiguelsandoval.com",
+  },
 }
 
 export default function RafflePage() {

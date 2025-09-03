@@ -1,20 +1,23 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { Resend } from 'https://esm.sh/resend@3.2.0'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { Resend } from 'https://esm.sh/resend@3.2.0';
 
-// 1. CONFIGURACIÓN INICIAL (USANDO VARIABLES DE ENTORNO)
+// --- 1. CONFIGURACIÓN INICIAL (USANDO VARIABLES DE ENTORNO) ---
+// El cliente de Supabase se inicializa de forma segura con variables de entorno.
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-)
-const resend = new Resend(Deno.env.get('RESEND_API_KEY')!)
+);
 
-// Función para generar un número aleatorio de 4 dígitos (0000-9999)
+// El cliente de Resend también usa una variable de entorno.
+const resend = new Resend(Deno.env.get('RESEND_API_KEY')!);
+
+// Función para generar un código numérico aleatorio.
 const generateNumericalCode = (): string => {
   const number = Math.floor(Math.random() * 10000);
   return String(number).padStart(4, '0');
 };
 
-// 2. LÓGICA PRINCIPAL (CONTROLADOR DE SOLICITUD)
+// --- 2. LÓGICA PRINCIPAL (CONTROLADOR DE SOLICITUD) ---
 Deno.serve(async (req) => {
   try {
     const { email, nombre_comprador, tickets_comprados, id } = await req.json();
@@ -42,14 +45,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (totalTickets + numTickets > MAX_TICKETS) {
+    if (totalTickets! + numTickets > MAX_TICKETS) {
       return new Response(JSON.stringify({ error: `El límite total de ${MAX_TICKETS} boletos ha sido alcanzado.` }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    // 3. GENERACIÓN DE CÓDIGOS ÚNICOS
+    // --- 3. GENERACIÓN DE CÓDIGOS ÚNICOS ---
     const uniqueCodes: string[] = [];
     let attempts = 0;
     const MAX_ATTEMPTS = numTickets * 5;
@@ -79,7 +82,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 4. ACTUALIZACIÓN Y ENVÍO DEL CORREO
+    // --- 4. ACTUALIZACIÓN Y ENVÍO DEL CORREO ---
     const { error: updateError } = await supabase
       .from('Contactos')
       .update({ codigos_unicos: uniqueCodes })
@@ -92,7 +95,7 @@ Deno.serve(async (req) => {
       });
     }
     
-    // Aquí es donde agregamos la lógica de Resend para enviar el correo
+    // Se envía el correo electrónico a través de Resend.
     await resend.emails.send({
       from: 'onboarding@resend.dev', // Reemplaza esto con tu dominio verificado
       to: [email],
@@ -115,6 +118,7 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
+    console.error('Error inesperado en la función:', error);
     return new Response(JSON.stringify({ error: `Error interno del servidor: ${error.message}` }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

@@ -27,10 +27,42 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle, Upload, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { validateFormData, generateWhatsAppUrl } from "@/lib/utils"
-import type { FormData } from "@/lib/types"
 
-export function RegistrationFormSection() {
+// Definición de tipos para los datos del formulario
+type FormData = {
+  buyerName: string
+  email: string
+  phone: string
+  referenceNumber: string
+  ticketCount: string
+}
+
+/**
+ * Función para validar el formato del email.
+ * @param formData - El objeto que contiene los datos del formulario.
+ * @returns Un arreglo de strings con los mensajes de error.
+ */
+const validateFormData = (formData: FormData): string[] => {
+  const errors: string[] = []
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    errors.push("El formato del email no es válido.")
+  }
+  return errors
+}
+
+/**
+ * Función para generar la URL de redirección a WhatsApp.
+ * @param phone - El número de teléfono al que se va a enviar el mensaje.
+ * @param message - El mensaje que se va a precargar.
+ * @returns La URL completa de WhatsApp.
+ */
+const generateWhatsAppUrl = (phone: string, message: string): string => {
+  const encodedMessage = encodeURIComponent(message)
+  return `https://wa.me/${phone}?text=${encodedMessage}`
+}
+
+
+export default function RegistrationFormSection() {
   // Estados principales del formulario
   // Almacena todos los datos del formulario en un objeto
   const [formData, setFormData] = useState<FormData>({
@@ -196,6 +228,12 @@ export function RegistrationFormSection() {
       // Agregar el archivo de comprobante
       formToSend.append("comprobante_pago", proofFile!)
 
+      // DEBUGGING: Imprimir los datos del formulario antes de enviarlos
+      console.log("Datos del formulario a enviar:")
+      for (const [key, value] of formToSend.entries()) {
+        console.log(`${key}: ${value}`)
+      }
+
       try {
         // PASO 4: Realizar llamada HTTP al endpoint de la API
         const response = await fetch("/api/submit-form", {
@@ -208,8 +246,13 @@ export function RegistrationFormSection() {
 
         // PASO 5: Manejar respuesta del servidor
         if (!response.ok) {
-          // Si la respuesta no es exitosa, mostrar error en la caja de notificación
-          setValidationErrors([data.error || "Error desconocido al enviar el formulario"])
+          // Si la respuesta no es exitosa, verificar el tipo de error
+          if (data.error && data.error.includes("duplicate key value violates unique constraint")) {
+            setValidationErrors(["Este correo electrónico ya está registrado. Por favor, utiliza otro."])
+          } else {
+            // Error desconocido
+            setValidationErrors([data.error || "Error desconocido al enviar el formulario"])
+          }
           setIsSubmitting(false)
           return
         }
@@ -220,27 +263,13 @@ export function RegistrationFormSection() {
           description: "Tu participación ha sido registrada. Serás redirigido a WhatsApp para soporte.",
         })
 
-        // Resetear todos los estados del formulario
-        setFormData({
-          buyerName: "",
-          email: "",
-          phone: "",
-          referenceNumber: "",
-          ticketCount: "0",
-        })
-        setProofFile(null)
-        setTermsAccepted(false)
-        setValidationErrors([])
-
         // PASO 7: Redirección automática a WhatsApp
         const whatsappMessage =
           "Gracias por comunicarte con Soporte de Sorteo de Sandoval Miguel; En el transcurso de la próximas 24 horas recibirás los números hacia el correo registrado Gracias por su compra, le deseamos MUCHA SUERTE..."
         const whatsappUrl = generateWhatsAppUrl("56949077188", whatsappMessage)
 
-        // Delay para que el usuario vea el mensaje de éxito antes de la redirección
-        setTimeout(() => {
-          window.open(whatsappUrl, "_blank", "noopener,noreferrer")
-        }, 1500)
+        // Redirigir en la misma ventana para evitar bloqueadores de pop-ups en móviles
+        window.location.href = whatsappUrl
       } catch (error) {
         // PASO 8: Manejo de errores durante el envío
         console.error("Error al enviar el formulario:", error)

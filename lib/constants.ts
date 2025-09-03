@@ -79,7 +79,7 @@ export const ACCOUNT_DETAILS = {
   // Cuenta de Mercado Pago (Chile)
   mercadopago: {
     accountNumber: "1020788385",
-    rut: "261783517",
+    rut: "26178351-7",
     bank: "Mercado Pago",
     accountType: "Vista",
     accountHolder: "Miguel Angel Sandoval Silvera",
@@ -98,7 +98,7 @@ export const ACCOUNT_DETAILS = {
   // Cuenta Banco Santander (Chile)
   santander: {
     name: "Miguel Angel Sandoval Silvera",
-    rut: "26.178.351-7",
+    rut: "26178351-7",
     accountType: "Cuenta Corriente",
     accountNumber: "0 000 81 08954 0",
     bank: "Banco Santander",

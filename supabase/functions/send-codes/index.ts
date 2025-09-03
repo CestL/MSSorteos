@@ -5,11 +5,11 @@ import { Resend } from 'https://esm.sh/resend@3.2.0'
 
 // --- 1. CONFIGURACIÓN INICIAL ---
 const supabase = createClient(
-  Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  Deno.env.get('https://gdakfzukhwvvkjboycft.supabase.co')!,
+  Deno.env.get('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkYWtmenVraHd2dmtqYm95Y2Z0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDc4OTU0MiwiZXhwIjoyMDcwMzY1NTQyfQ.TVLQk0x7zyPPhwTRpBkQqleonZHps241K7n7DMUFqh4')!
 )
 
-const resend = new Resend(Deno.env.get('RESEND_API_KEY')!)
+const resend = new Resend(Deno.env.get('re_6kXXe2oB_GAnaimmia2UR5NsFpjb4Gsxt')!)
 
 // Función para generar un número aleatorio de 4 dígitos (0000-9999)
 const generateNumericalCode = (): string => {

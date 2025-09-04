@@ -22,6 +22,8 @@ const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SE
 
 // --- 2. FUNCIÓN PRINCIPAL DEL ENDPOINT ---
 export async function POST(request: NextRequest) {
+  let fileName = ""; // Declara fileName fuera del try para que esté disponible en el catch
+
   try {
     // --- 2.1. EXTRACCIÓN Y VALIDACIÓN DE DATOS DEL FORMULARIO ---
     const formData = await request.formData();
@@ -57,7 +59,8 @@ export async function POST(request: NextRequest) {
         .eq("numero_referencia", numeroReferencia);
 
     if (existingPurchaseError) {
-        throw new Error("Error al verificar la referencia de pago.");
+        console.error("Error al verificar la referencia de pago:", existingPurchaseError.message);
+        return NextResponse.json({ error: "Error al verificar la referencia de pago." }, { status: 500 });
     }
     
     if (existingPurchase && existingPurchase.length > 0) {
@@ -66,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     // --- 2.3. SUBIDA DEL ARCHIVO A SUPABASE STORAGE ---
     const fileExtension = comprobantePago.name.split(".").pop();
-    const fileName = `${uuidv4()}.${fileExtension}`;
+    fileName = `${uuidv4()}.${fileExtension}`;
 
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from("comprobantes")
@@ -82,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     const fileUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/comprobantes/${fileName}`;
 
-    // --- 2.4. INSERCIÓN EN LA BASE DE DATOS (usuarios y compras) ---
+    // --- 2.4. INSERCIÓN EN LA BASE DE DATOS ---
     try {
       // Intentar encontrar si el usuario ya existe por su email
       const { data: userData, error: userFetchError } = await supabase
@@ -91,7 +94,7 @@ export async function POST(request: NextRequest) {
         .eq("email", email)
         .single();
 
-      let usuarioId;
+      let usuarioId: string | null = null;
       if (userFetchError && userFetchError.code === "PGRST116") {
         // Si el usuario no existe (código 116), lo insertamos
         const { data: insertUserData, error: insertUserError } = await supabase
@@ -105,15 +108,25 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (insertUserError) {
-          throw new Error("Error al crear el usuario.");
+          console.error("Error al insertar un nuevo usuario:", insertUserError.message);
+          throw new Error("Error al procesar los datos del usuario.");
         }
         usuarioId = insertUserData.id;
       } else if (userFetchError) {
-        throw new Error("Error al verificar el usuario.");
-      } else {
+        console.error("Error al verificar la existencia del usuario:", userFetchError.message);
+        throw new Error("Error al procesar los datos del usuario.");
+      } else if (userData) {
         // Si el usuario ya existe, usamos su ID
         usuarioId = userData.id;
       }
+      
+      // *** VERIFICACIÓN CRÍTICA DEL ID DEL USUARIO ***
+      if (!usuarioId) {
+        console.error("No se pudo obtener un ID de usuario válido después de la operación.");
+        throw new Error("No se pudo obtener un ID de usuario válido.");
+      }
+      
+      console.log("ID de usuario obtenido:", usuarioId); // Log de depuración
 
       // Con el ID del usuario, insertamos la compra en la tabla 'compras'
       const { data: insertPurchaseData, error: insertPurchaseError } = await supabase.from("compras").insert({
@@ -125,7 +138,8 @@ export async function POST(request: NextRequest) {
       });
 
       if (insertPurchaseError) {
-        throw new Error("Error al registrar la compra.");
+        console.error("Error al insertar la compra:", insertPurchaseError.message);
+        throw new Error("Error al registrar los datos de la compra.");
       }
 
       // --- 2.5. RESPUESTA EXITOSA ---
@@ -140,8 +154,10 @@ export async function POST(request: NextRequest) {
       // --- 2.6. MANEJO DE ERRORES DE BASE DE DATOS CON ROLLBACK ---
       // Si la inserción en 'usuarios' o 'compras' falla, eliminamos el archivo de Storage
       // para evitar datos huérfanos.
-      console.error("Error al insertar en la base de datos:", dbError.message);
-      await supabase.storage.from("comprobantes").remove([fileName]);
+      console.error("Error en la operación de la base de datos:", dbError.message);
+      if (fileName) {
+          await supabase.storage.from("comprobantes").remove([fileName]);
+      }
       return NextResponse.json({ error: "Error al registrar la información del contacto." }, { status: 500 });
     }
   } catch (error) {

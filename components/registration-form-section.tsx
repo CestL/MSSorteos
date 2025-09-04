@@ -27,7 +27,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle, Upload, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { validateFormData, generateWhatsAppUrl } from "@/lib/utils"
+import { generateWhatsAppUrl } from "@/lib/utils"
 import type { FormData } from "@/lib/types"
 
 export function RegistrationFormSection() {
@@ -136,10 +136,9 @@ export function RegistrationFormSection() {
       // Limpiar errores previos
       setValidationErrors([])
 
-      // PASO 1: Recopilar todos los errores de validación
       const errors: string[] = []
 
-      // Validación de campos de texto obligatorios
+      // Validación de campos de texto obligatorios específicos
       if (!formData.buyerName.trim()) {
         errors.push("Nombre del comprador es requerido")
       }
@@ -153,9 +152,9 @@ export function RegistrationFormSection() {
         errors.push("Número de referencia es requerido")
       }
 
-      // Validación del número de tickets
-      if (!formData.ticketCount || formData.ticketCount === "0") {
-        errors.push("Número de tickets debe ser mayor a 0")
+      const ticketCount = Number.parseInt(formData.ticketCount) || 0
+      if (ticketCount < 3) {
+        errors.push("Número de tickets es requerido (mínimo 3)")
       }
 
       // Validación del archivo de comprobante
@@ -163,21 +162,18 @@ export function RegistrationFormSection() {
         errors.push("Comprobante de pago es requerido")
       }
 
-      // Validación de términos y condiciones
-      if (!termsAccepted) {
-        errors.push("Debes aceptar los términos y condiciones")
-      }
-
-      // Validación adicional del email usando función utilitaria
-      const emailErrors = validateFormData(formData)
-      errors.push(...emailErrors)
-
       // PASO 2: Si hay errores, mostrarlos y detener el envío
       if (errors.length > 0) {
         // Establecer errores en el estado para mostrar en la UI
         setValidationErrors(errors)
 
         // Desactivar estado de envío
+        setIsSubmitting(false)
+        return
+      }
+
+      if (!termsAccepted) {
+        setValidationErrors(["Debes aceptar los términos y condiciones"])
         setIsSubmitting(false)
         return
       }
@@ -208,8 +204,15 @@ export function RegistrationFormSection() {
 
         // PASO 5: Manejar respuesta del servidor
         if (!response.ok) {
-          // Si la respuesta no es exitosa, mostrar error en la caja de notificación
-          setValidationErrors([data.error || "Error desconocido al enviar el formulario"])
+          if (
+            data.error &&
+            data.error.includes('duplicate key value violates unique constraint "Formularios_email_key"')
+          ) {
+            setValidationErrors(["Este email ya está registrado. Por favor, utiliza un email diferente."])
+          } else {
+            // Si la respuesta no es exitosa, mostrar error en la caja de notificación
+            setValidationErrors([data.error || "Error desconocido al enviar el formulario"])
+          }
           setIsSubmitting(false)
           return
         }
@@ -232,14 +235,24 @@ export function RegistrationFormSection() {
         setTermsAccepted(false)
         setValidationErrors([])
 
-        // PASO 7: Redirección automática a WhatsApp
         const whatsappMessage =
           "Gracias por comunicarte con Soporte de Sorteo de Sandoval Miguel; En el transcurso de la próximas 24 horas recibirás los números hacia el correo registrado Gracias por su compra, le deseamos MUCHA SUERTE..."
         const whatsappUrl = generateWhatsAppUrl("56949077188", whatsappMessage)
 
+        // Detectar si es dispositivo móvil o tablet para redirección directa
+        const isMobileOrTablet = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent,
+        )
+
         // Delay para que el usuario vea el mensaje de éxito antes de la redirección
         setTimeout(() => {
-          window.open(whatsappUrl, "_blank", "noopener,noreferrer")
+          if (isMobileOrTablet) {
+            // En dispositivos móviles/tablets, usar window.location.href para redirección directa
+            window.location.href = whatsappUrl
+          } else {
+            // En desktop, mantener comportamiento original con nueva pestaña
+            window.open(whatsappUrl, "_blank", "noopener,noreferrer")
+          }
         }, 1500)
       } catch (error) {
         // PASO 8: Manejo de errores durante el envío
@@ -271,15 +284,32 @@ export function RegistrationFormSection() {
         {label} {required && <span className="text-red-400">*</span>}
       </Label>
 
-      {/* Campo de entrada con estilos responsivos y validación desactivada */}
-      <Input
-        id={id}
-        type={type}
-        placeholder={placeholder}
-        value={formData[id]}
-        onChange={(e) => handleInputChange(id, e.target.value)}
-        className="h-10 bg-gray-700 border-gray-600 text-white focus:border-yellow-400 focus:ring-yellow-400 text-sm sm:h-12 sm:text-base"
-      />
+      {id === "ticketCount" ? (
+        <Input
+          id={id}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          placeholder={placeholder}
+          value={formData[id]}
+          onChange={(e) => {
+            // Solo permitir números en el campo de tickets
+            const value = e.target.value.replace(/[^0-9]/g, "")
+            handleInputChange(id, value)
+          }}
+          className="h-10 bg-gray-700 border-gray-600 text-white focus:border-yellow-400 focus:ring-yellow-400 text-sm sm:h-12 sm:text-base"
+        />
+      ) : (
+        /* Campo de entrada con estilos responsivos y validación desactivada */
+        <Input
+          id={id}
+          type={type}
+          placeholder={placeholder}
+          value={formData[id]}
+          onChange={(e) => handleInputChange(id, e.target.value)}
+          className="h-10 bg-gray-700 border-gray-600 text-white focus:border-yellow-400 focus:ring-yellow-400 text-sm sm:h-12 sm:text-base"
+        />
+      )}
     </div>
   )
 
@@ -410,7 +440,7 @@ export function RegistrationFormSection() {
             </div>
 
             {/* Campo de número de tickets */}
-            {renderFormField("ticketCount", "Número de tickets", "number", "0")}
+            {renderFormField("ticketCount", "Número de tickets", "text", "Mínimo 3 tickets")}
 
             {/* Sección de términos y condiciones */}
             <div className="flex items-start space-x-2 p-2 bg-yellow-900/20 border border-yellow-400 rounded-lg sm:space-x-3 sm:p-4">

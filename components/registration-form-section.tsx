@@ -81,32 +81,33 @@ export function RegistrationFormSection() {
 
   /**
    * Función para manejar la selección y validación de archivos
-   * Valida el tamaño del archivo y muestra errores apropiados
+   * Implementación simplificada y robusta para garantizar funcionamiento correcto
    * @param e - Evento de cambio del input de archivo
    */
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      // Obtener el primer archivo seleccionado
       const file = e.target.files?.[0]
 
-      // Definir el tamaño máximo permitido (3 MB en bytes)
-      const maxFileSize = 3 * 1024 * 1024 // 3 MB = 3 * 1024 * 1024 bytes
+      if (!file) {
+        setProofFile(null)
+        return
+      }
 
-      if (file && file.size > maxFileSize) {
-        // Calcular el tamaño del archivo en MB para mostrar al usuario
+      // Validación de tamaño de archivo (3MB máximo)
+      const maxFileSize = 3 * 1024 * 1024 // 3 MB en bytes
+
+      if (file.size > maxFileSize) {
+        // Calcular tamaño en MB para mostrar al usuario
         const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2)
 
-        // Crear mensaje de error detallado y agregarlo a la lista de errores
-        const errorMessage = `El archivo seleccionado (${fileSizeInMB}MB) supera el límite de 3MB`
-        setValidationErrors([errorMessage])
+        // Mostrar error específico de tamaño de archivo
+        setValidationErrors([`El archivo seleccionado (${fileSizeInMB}MB) supera el límite de 3MB`])
 
-        // Limpiar el archivo seleccionado para prevenir envío
+        // Limpiar selección de archivo
         setProofFile(null)
-
-        // Resetear el valor del input para permitir seleccionar el mismo archivo nuevamente
         e.target.value = ""
 
-        // Mostrar notificación toast para mejor experiencia de usuario
+        // Mostrar notificación toast
         toast({
           title: "Archivo demasiado grande",
           description: `El archivo seleccionado (${fileSizeInMB}MB) supera el límite de 3MB. Por favor, selecciona un archivo más pequeño.`,
@@ -115,26 +116,26 @@ export function RegistrationFormSection() {
         return
       }
 
-      // Si el archivo es válido, guardarlo en el estado
-      setProofFile(file || null)
+      // Si el archivo es válido, guardarlo
+      setProofFile(file)
 
+      // Limpiar errores previos si los hay
       if (validationErrors.length > 0) {
         setValidationErrors([])
       }
 
-      if (file) {
-        toast({
-          title: "Archivo seleccionado",
-          description: `${file.name} ha sido seleccionado correctamente.`,
-        })
-      }
+      // Mostrar confirmación de archivo seleccionado
+      toast({
+        title: "Archivo seleccionado",
+        description: `${file.name} ha sido seleccionado correctamente.`,
+      })
     },
     [validationErrors.length, toast],
   )
 
   /**
-   * Función para activar el input de archivo oculto cuando se hace clic en el botón
-   * Garantiza que la selección de archivos funcione correctamente
+   * Función simplificada para activar el selector de archivos
+   * Implementación directa y confiable del trigger del input
    */
   const handleUploadButtonClick = useCallback(() => {
     const fileInput = document.getElementById("proof") as HTMLInputElement
@@ -441,7 +442,13 @@ export function RegistrationFormSection() {
 
               <div className="flex items-center gap-2 sm:gap-3">
                 {/* Input de archivo oculto */}
-                <Input id="proof" type="file" accept="image/*,.pdf" onChange={handleFileChange} className="hidden" />
+                <input
+                  id="proof"
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={handleFileChange}
+                  style={{ display: "none" }}
+                />
 
                 <Button
                   type="button"
@@ -456,10 +463,10 @@ export function RegistrationFormSection() {
                 {proofFile && (
                   <div className="flex items-center gap-1 text-xs text-green-400 sm:text-sm">
                     <span className="text-green-500">✓</span>
-                    <span className="truncate max-w-[150px] sm:max-w-[200px]" title={proofFile.name}>
+                    <span className="truncate max-w-[120px] sm:max-w-[180px]" title={proofFile.name}>
                       {proofFile.name}
                     </span>
-                    <span className="text-gray-400">({(proofFile.size / (1024 * 1024)).toFixed(2)}MB)</span>
+                    <span className="text-gray-400 text-xs">({(proofFile.size / (1024 * 1024)).toFixed(1)}MB)</span>
                   </div>
                 )}
               </div>

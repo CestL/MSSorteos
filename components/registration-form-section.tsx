@@ -27,42 +27,10 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle, Upload, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { generateWhatsAppUrl } from "@/lib/utils"
+import type { FormData } from "@/lib/types"
 
-// Definición de tipos para los datos del formulario
-type FormData = {
-  buyerName: string
-  email: string
-  phone: string
-  referenceNumber: string
-  ticketCount: string
-}
-
-/**
- * Función para validar el formato del email.
- * @param formData - El objeto que contiene los datos del formulario.
- * @returns Un arreglo de strings con los mensajes de error.
- */
-const validateFormData = (formData: FormData): string[] => {
-  const errors: string[] = []
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-    errors.push("El formato del email no es válido.")
-  }
-  return errors
-}
-
-/**
- * Función para generar la URL de redirección a WhatsApp.
- * @param phone - El número de teléfono al que se va a enviar el mensaje.
- * @param message - El mensaje que se va a precargar.
- * @returns La URL completa de WhatsApp.
- */
-const generateWhatsAppUrl = (phone: string, message: string): string => {
-  const encodedMessage = encodeURIComponent(message)
-  return `https://wa.me/${phone}?text=${encodedMessage}`
-}
-
-
-export default function RegistrationFormSection() {
+export function RegistrationFormSection() {
   // Estados principales del formulario
   // Almacena todos los datos del formulario en un objeto
   const [formData, setFormData] = useState<FormData>({
@@ -113,44 +81,68 @@ export default function RegistrationFormSection() {
 
   /**
    * Función para manejar la selección y validación de archivos
-   * Valida el tamaño del archivo y muestra errores apropiados
+   * Implementación simplificada y robusta para garantizar funcionamiento correcto
    * @param e - Evento de cambio del input de archivo
    */
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      // Obtener el primer archivo seleccionado
       const file = e.target.files?.[0]
 
-      // Definir el tamaño máximo permitido (3 MB en bytes)
-      const maxFileSize = 3 * 1024 * 1024 // 3 MB = 3 * 1024 * 1024 bytes
-
-      // Validación de tamaño de archivo
-      if (file && file.size > maxFileSize) {
-        // Calcular el tamaño del archivo en MB para mostrar al usuario
-        const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2)
-
-        // Crear mensaje de error detallado y agregarlo a la lista de errores
-        const errorMessage = `El archivo seleccionado (${fileSizeInMB}MB) supera el límite de 3MB`
-        setValidationErrors([errorMessage])
-
-        // Limpiar el archivo seleccionado
+      if (!file) {
         setProofFile(null)
-
-        // Resetear el valor del input para permitir seleccionar el mismo archivo nuevamente
-        e.target.value = ""
         return
       }
 
-      // Si el archivo es válido, guardarlo en el estado
-      setProofFile(file || null)
+      // Validación de tamaño de archivo (3MB máximo)
+      const maxFileSize = 3 * 1024 * 1024 // 3 MB en bytes
 
-      // Limpiar errores de validación cuando se seleccione un archivo válido
+      if (file.size > maxFileSize) {
+        // Calcular tamaño en MB para mostrar al usuario
+        const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2)
+
+        // Mostrar error específico de tamaño de archivo
+        setValidationErrors([`El archivo seleccionado (${fileSizeInMB}MB) supera el límite de 3MB`])
+
+        // Limpiar selección de archivo
+        setProofFile(null)
+        e.target.value = ""
+
+        // Mostrar notificación toast
+        toast({
+          title: "Archivo demasiado grande",
+          description: `El archivo seleccionado (${fileSizeInMB}MB) supera el límite de 3MB. Por favor, selecciona un archivo más pequeño.`,
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Si el archivo es válido, guardarlo
+      setProofFile(file)
+
+      // Limpiar errores previos si los hay
       if (validationErrors.length > 0) {
         setValidationErrors([])
       }
+
+      // Mostrar confirmación de archivo seleccionado
+      toast({
+        title: "Archivo seleccionado",
+        description: `${file.name} ha sido seleccionado correctamente.`,
+      })
     },
-    [validationErrors.length],
+    [validationErrors.length, toast],
   )
+
+  /**
+   * Función simplificada para activar el selector de archivos
+   * Implementación directa y confiable del trigger del input
+   */
+  const handleUploadButtonClick = useCallback(() => {
+    const fileInput = document.getElementById("proof") as HTMLInputElement
+    if (fileInput) {
+      fileInput.click()
+    }
+  }, [])
 
   /**
    * Función principal para manejar el envío del formulario
@@ -168,10 +160,9 @@ export default function RegistrationFormSection() {
       // Limpiar errores previos
       setValidationErrors([])
 
-      // PASO 1: Recopilar todos los errores de validación
       const errors: string[] = []
 
-      // Validación de campos de texto obligatorios
+      // Validación de campos de texto obligatorios específicos
       if (!formData.buyerName.trim()) {
         errors.push("Nombre del comprador es requerido")
       }
@@ -185,9 +176,9 @@ export default function RegistrationFormSection() {
         errors.push("Número de referencia es requerido")
       }
 
-      // Validación del número de tickets
-      if (!formData.ticketCount || formData.ticketCount === "0") {
-        errors.push("Número de tickets debe ser mayor a 0")
+      const ticketCount = Number.parseInt(formData.ticketCount) || 0
+      if (ticketCount < 3) {
+        errors.push("Número de tickets es requerido (mínimo 3)")
       }
 
       // Validación del archivo de comprobante
@@ -195,16 +186,7 @@ export default function RegistrationFormSection() {
         errors.push("Comprobante de pago es requerido")
       }
 
-      // Validación de términos y condiciones
-      if (!termsAccepted) {
-        errors.push("Debes aceptar los términos y condiciones")
-      }
-
-      // Validación adicional del email usando función utilitaria
-      const emailErrors = validateFormData(formData)
-      errors.push(...emailErrors)
-
-      // PASO 2: Si hay errores, mostrarlos y detener el envío
+      // Si hay errores, mostrarlos y detener el envío
       if (errors.length > 0) {
         // Establecer errores en el estado para mostrar en la UI
         setValidationErrors(errors)
@@ -214,7 +196,13 @@ export default function RegistrationFormSection() {
         return
       }
 
-      // PASO 3: Preparar datos para envío al servidor
+      if (!termsAccepted) {
+        setValidationErrors(["Debes aceptar los términos y condiciones"])
+        setIsSubmitting(false)
+        return
+      }
+
+      // Preparar datos para envío al servidor
       // Crear FormData para envío multipart (necesario para archivos)
       const formToSend = new FormData()
 
@@ -228,14 +216,8 @@ export default function RegistrationFormSection() {
       // Agregar el archivo de comprobante
       formToSend.append("comprobante_pago", proofFile!)
 
-      // DEBUGGING: Imprimir los datos del formulario antes de enviarlos
-      console.log("Datos del formulario a enviar:")
-      for (const [key, value] of formToSend.entries()) {
-        console.log(`${key}: ${value}`)
-      }
-
       try {
-        // PASO 4: Realizar llamada HTTP al endpoint de la API
+        // Realizar llamada HTTP al endpoint de la API
         const response = await fetch("/api/submit-form", {
           method: "POST",
           body: formToSend,
@@ -244,40 +226,66 @@ export default function RegistrationFormSection() {
         // Parsear la respuesta JSON
         const data = await response.json()
 
-        // PASO 5: Manejar respuesta del servidor
+        // Manejar respuesta del servidor
         if (!response.ok) {
-          // Si la respuesta no es exitosa, verificar el tipo de error
-          if (data.error && data.error.includes("duplicate key value violates unique constraint")) {
-            setValidationErrors(["Este correo electrónico ya está registrado. Por favor, utiliza otro."])
+          if (
+            data.error &&
+            data.error.includes('duplicate key value violates unique constraint "Formularios_email_key"')
+          ) {
+            setValidationErrors(["Este email ya está registrado. Por favor, utiliza un email diferente."])
           } else {
-            // Error desconocido
+            // Si la respuesta no es exitosa, mostrar error en la caja de notificación
             setValidationErrors([data.error || "Error desconocido al enviar el formulario"])
           }
           setIsSubmitting(false)
           return
         }
 
-        // PASO 6: Envío exitoso - mostrar mensaje y resetear formulario
+        // Envío exitoso - mostrar mensaje y resetear formulario
         toast({
           title: "¡Registro enviado exitosamente!",
           description: "Tu participación ha sido registrada. Serás redirigido a WhatsApp para soporte.",
         })
 
-        // PASO 7: Redirección automática a WhatsApp
+        // Resetear todos los estados del formulario
+        setFormData({
+          buyerName: "",
+          email: "",
+          phone: "",
+          referenceNumber: "",
+          ticketCount: "0",
+        })
+        setProofFile(null)
+        setTermsAccepted(false)
+        setValidationErrors([])
+
         const whatsappMessage =
           "Gracias por comunicarte con Soporte de Sorteo de Sandoval Miguel; En el transcurso de la próximas 24 horas recibirás los números hacia el correo registrado Gracias por su compra, le deseamos MUCHA SUERTE..."
         const whatsappUrl = generateWhatsAppUrl("56949077188", whatsappMessage)
 
-        // Redirigir en la misma ventana para evitar bloqueadores de pop-ups en móviles
-        window.location.href = whatsappUrl
+        // Detectar si es dispositivo móvil o tablet para redirección directa
+        const isMobileOrTablet = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent,
+        )
+
+        // Delay para que el usuario vea el mensaje de éxito antes de la redirección
+        setTimeout(() => {
+          if (isMobileOrTablet) {
+            // En dispositivos móviles/tablets, usar window.location.href para redirección directa
+            window.location.href = whatsappUrl
+          } else {
+            // En desktop, mantener comportamiento original con nueva pestaña
+            window.open(whatsappUrl, "_blank", "noopener,noreferrer")
+          }
+        }, 1500)
       } catch (error) {
-        // PASO 8: Manejo de errores durante el envío
+        // Manejo de errores durante el envío
         console.error("Error al enviar el formulario:", error)
         setValidationErrors([
           error instanceof Error ? error.message : "Ocurrió un error inesperado al procesar tu solicitud.",
         ])
       } finally {
-        // PASO 9: Siempre desactivar el estado de envío al final
+        // Siempre desactivar el estado de envío al final
         setIsSubmitting(false)
       }
     },
@@ -300,15 +308,32 @@ export default function RegistrationFormSection() {
         {label} {required && <span className="text-red-400">*</span>}
       </Label>
 
-      {/* Campo de entrada con estilos responsivos y validación desactivada */}
-      <Input
-        id={id}
-        type={type}
-        placeholder={placeholder}
-        value={formData[id]}
-        onChange={(e) => handleInputChange(id, e.target.value)}
-        className="h-10 bg-gray-700 border-gray-600 text-white focus:border-yellow-400 focus:ring-yellow-400 text-sm sm:h-12 sm:text-base"
-      />
+      {id === "ticketCount" ? (
+        <Input
+          id={id}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          placeholder={placeholder}
+          value={formData[id]}
+          onChange={(e) => {
+            // Solo permitir números en el campo de tickets
+            const value = e.target.value.replace(/[^0-9]/g, "")
+            handleInputChange(id, value)
+          }}
+          className="h-10 bg-gray-700 border-gray-600 text-white focus:border-yellow-400 focus:ring-yellow-400 text-sm sm:h-12 sm:text-base"
+        />
+      ) : (
+        /* Campo de entrada con estilos responsivos y validación desactivada */
+        <Input
+          id={id}
+          type={type}
+          placeholder={placeholder}
+          value={formData[id]}
+          onChange={(e) => handleInputChange(id, e.target.value)}
+          className="h-10 bg-gray-700 border-gray-600 text-white focus:border-yellow-400 focus:ring-yellow-400 text-sm sm:h-12 sm:text-base"
+        />
+      )}
     </div>
   )
 
@@ -417,21 +442,33 @@ export default function RegistrationFormSection() {
 
               <div className="flex items-center gap-2 sm:gap-3">
                 {/* Input de archivo oculto */}
-                <Input id="proof" type="file" accept="image/*,.pdf" onChange={handleFileChange} className="hidden" />
+                <input
+                  id="proof"
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={handleFileChange}
+                  style={{ display: "none" }}
+                />
 
-                {/* Botón personalizado para activar selección de archivo */}
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => document.getElementById("proof")?.click()}
+                  onClick={handleUploadButtonClick}
                   className="flex items-center gap-1 border-gray-600 text-white hover:bg-gray-700 bg-transparent text-xs sm:gap-2 sm:text-sm"
                 >
                   <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
                   Subir comprobante
                 </Button>
 
-                {/* Mostrar nombre del archivo seleccionado */}
-                {proofFile && <span className="text-xs text-green-400 truncate sm:text-sm">✓ {proofFile.name}</span>}
+                {proofFile && (
+                  <div className="flex items-center gap-1 text-xs text-green-400 sm:text-sm">
+                    <span className="text-green-500">✓</span>
+                    <span className="truncate max-w-[120px] sm:max-w-[180px]" title={proofFile.name}>
+                      {proofFile.name}
+                    </span>
+                    <span className="text-gray-400 text-xs">({(proofFile.size / (1024 * 1024)).toFixed(1)}MB)</span>
+                  </div>
+                )}
               </div>
 
               {/* Información sobre requisitos del archivo */}
@@ -439,7 +476,7 @@ export default function RegistrationFormSection() {
             </div>
 
             {/* Campo de número de tickets */}
-            {renderFormField("ticketCount", "Número de tickets", "number", "0")}
+            {renderFormField("ticketCount", "Número de tickets", "text", "Mínimo 3 tickets")}
 
             {/* Sección de términos y condiciones */}
             <div className="flex items-start space-x-2 p-2 bg-yellow-900/20 border border-yellow-400 rounded-lg sm:space-x-3 sm:p-4">

@@ -54,17 +54,17 @@ export async function POST(request: NextRequest) {
     // --- 2.2. VALIDACIÓN DE DUPLICADOS EN LA BASE DE DATOS ---
     // Verificar si el numero de referencia ya existe
     const { data: existingPurchase, error: existingPurchaseError } = await supabase
-        .from("compras")
-        .select("id")
-        .eq("numero_referencia", numeroReferencia);
+      .from("compras")
+      .select("id")
+      .eq("numero_referencia", numeroReferencia);
 
     if (existingPurchaseError) {
-        console.error("Error al verificar la referencia de pago:", existingPurchaseError.message);
-        return NextResponse.json({ error: "Error al verificar la referencia de pago." }, { status: 500 });
+      console.error("Error al verificar la referencia de pago:", existingPurchaseError.message);
+      return NextResponse.json({ error: "Error al verificar la referencia de pago." }, { status: 500 });
     }
-    
+
     if (existingPurchase && existingPurchase.length > 0) {
-        return NextResponse.json({ error: "Este número de referencia ya ha sido utilizado. Por favor, revisa tu información o contacta a soporte." }, { status: 409 });
+      return NextResponse.json({ error: "Este número de referencia ya ha sido utilizado. Por favor, revisa tu información o contacta a soporte." }, { status: 409 });
     }
 
     // --- 2.3. SUBIDA DEL ARCHIVO A SUPABASE STORAGE ---
@@ -119,13 +119,12 @@ export async function POST(request: NextRequest) {
         // Si el usuario ya existe, usamos su ID
         usuarioId = userData.id;
       }
-      
       // *** VERIFICACIÓN CRÍTICA DEL ID DEL USUARIO ***
       if (!usuarioId) {
         console.error("No se pudo obtener un ID de usuario válido después de la operación.");
         throw new Error("No se pudo obtener un ID de usuario válido.");
       }
-      
+
       console.log("ID de usuario obtenido:", usuarioId); // Log de depuración
 
       // Con el ID del usuario, insertamos la compra en la tabla 'compras'
@@ -134,7 +133,7 @@ export async function POST(request: NextRequest) {
         numero_referencia: numeroReferencia,
         tickets_comprados: ticketsComprados,
         url_comprobante: fileUrl,
-        status_pago: true, // Esto activa el trigger y la Edge Function
+        status_pago: false, // Esto activa el trigger y la Edge Function
       });
 
       if (insertPurchaseError) {
@@ -156,7 +155,7 @@ export async function POST(request: NextRequest) {
       // para evitar datos huérfanos.
       console.error("Error en la operación de la base de datos:", dbError.message);
       if (fileName) {
-          await supabase.storage.from("comprobantes").remove([fileName]);
+        await supabase.storage.from("comprobantes").remove([fileName]);
       }
       return NextResponse.json({ error: "Error al registrar la información del contacto." }, { status: 500 });
     }

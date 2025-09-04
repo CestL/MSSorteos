@@ -92,7 +92,6 @@ export function RegistrationFormSection() {
       // Definir el tamaño máximo permitido (3 MB en bytes)
       const maxFileSize = 3 * 1024 * 1024 // 3 MB = 3 * 1024 * 1024 bytes
 
-      // Validación de tamaño de archivo
       if (file && file.size > maxFileSize) {
         // Calcular el tamaño del archivo en MB para mostrar al usuario
         const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2)
@@ -101,24 +100,48 @@ export function RegistrationFormSection() {
         const errorMessage = `El archivo seleccionado (${fileSizeInMB}MB) supera el límite de 3MB`
         setValidationErrors([errorMessage])
 
-        // Limpiar el archivo seleccionado
+        // Limpiar el archivo seleccionado para prevenir envío
         setProofFile(null)
 
         // Resetear el valor del input para permitir seleccionar el mismo archivo nuevamente
         e.target.value = ""
+
+        // Mostrar notificación toast para mejor experiencia de usuario
+        toast({
+          title: "Archivo demasiado grande",
+          description: `El archivo seleccionado (${fileSizeInMB}MB) supera el límite de 3MB. Por favor, selecciona un archivo más pequeño.`,
+          variant: "destructive",
+        })
         return
       }
 
       // Si el archivo es válido, guardarlo en el estado
       setProofFile(file || null)
 
-      // Limpiar errores de validación cuando se seleccione un archivo válido
       if (validationErrors.length > 0) {
         setValidationErrors([])
       }
+
+      if (file) {
+        toast({
+          title: "Archivo seleccionado",
+          description: `${file.name} ha sido seleccionado correctamente.`,
+        })
+      }
     },
-    [validationErrors.length],
+    [validationErrors.length, toast],
   )
+
+  /**
+   * Función para activar el input de archivo oculto cuando se hace clic en el botón
+   * Garantiza que la selección de archivos funcione correctamente
+   */
+  const handleUploadButtonClick = useCallback(() => {
+    const fileInput = document.getElementById("proof") as HTMLInputElement
+    if (fileInput) {
+      fileInput.click()
+    }
+  }, [])
 
   /**
    * Función principal para manejar el envío del formulario
@@ -162,7 +185,7 @@ export function RegistrationFormSection() {
         errors.push("Comprobante de pago es requerido")
       }
 
-      // PASO 2: Si hay errores, mostrarlos y detener el envío
+      // Si hay errores, mostrarlos y detener el envío
       if (errors.length > 0) {
         // Establecer errores en el estado para mostrar en la UI
         setValidationErrors(errors)
@@ -178,7 +201,7 @@ export function RegistrationFormSection() {
         return
       }
 
-      // PASO 3: Preparar datos para envío al servidor
+      // Preparar datos para envío al servidor
       // Crear FormData para envío multipart (necesario para archivos)
       const formToSend = new FormData()
 
@@ -193,7 +216,7 @@ export function RegistrationFormSection() {
       formToSend.append("comprobante_pago", proofFile!)
 
       try {
-        // PASO 4: Realizar llamada HTTP al endpoint de la API
+        // Realizar llamada HTTP al endpoint de la API
         const response = await fetch("/api/submit-form", {
           method: "POST",
           body: formToSend,
@@ -202,7 +225,7 @@ export function RegistrationFormSection() {
         // Parsear la respuesta JSON
         const data = await response.json()
 
-        // PASO 5: Manejar respuesta del servidor
+        // Manejar respuesta del servidor
         if (!response.ok) {
           if (
             data.error &&
@@ -217,7 +240,7 @@ export function RegistrationFormSection() {
           return
         }
 
-        // PASO 6: Envío exitoso - mostrar mensaje y resetear formulario
+        // Envío exitoso - mostrar mensaje y resetear formulario
         toast({
           title: "¡Registro enviado exitosamente!",
           description: "Tu participación ha sido registrada. Serás redirigido a WhatsApp para soporte.",
@@ -255,13 +278,13 @@ export function RegistrationFormSection() {
           }
         }, 1500)
       } catch (error) {
-        // PASO 8: Manejo de errores durante el envío
+        // Manejo de errores durante el envío
         console.error("Error al enviar el formulario:", error)
         setValidationErrors([
           error instanceof Error ? error.message : "Ocurrió un error inesperado al procesar tu solicitud.",
         ])
       } finally {
-        // PASO 9: Siempre desactivar el estado de envío al final
+        // Siempre desactivar el estado de envío al final
         setIsSubmitting(false)
       }
     },
@@ -420,19 +443,25 @@ export function RegistrationFormSection() {
                 {/* Input de archivo oculto */}
                 <Input id="proof" type="file" accept="image/*,.pdf" onChange={handleFileChange} className="hidden" />
 
-                {/* Botón personalizado para activar selección de archivo */}
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => document.getElementById("proof")?.click()}
+                  onClick={handleUploadButtonClick}
                   className="flex items-center gap-1 border-gray-600 text-white hover:bg-gray-700 bg-transparent text-xs sm:gap-2 sm:text-sm"
                 >
                   <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
                   Subir comprobante
                 </Button>
 
-                {/* Mostrar nombre del archivo seleccionado */}
-                {proofFile && <span className="text-xs text-green-400 truncate sm:text-sm">✓ {proofFile.name}</span>}
+                {proofFile && (
+                  <div className="flex items-center gap-1 text-xs text-green-400 sm:text-sm">
+                    <span className="text-green-500">✓</span>
+                    <span className="truncate max-w-[150px] sm:max-w-[200px]" title={proofFile.name}>
+                      {proofFile.name}
+                    </span>
+                    <span className="text-gray-400">({(proofFile.size / (1024 * 1024)).toFixed(2)}MB)</span>
+                  </div>
+                )}
               </div>
 
               {/* Información sobre requisitos del archivo */}

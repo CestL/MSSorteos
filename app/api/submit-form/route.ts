@@ -49,7 +49,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "El comprobante de pago no puede superar los 3 MB." }, { status: 400 });
     }
 
-    // --- 2.2. SUBIDA DEL ARCHIVO A SUPABASE STORAGE ---
+    // --- 2.2. VALIDACIÓN DE DUPLICADOS EN LA BASE DE DATOS ---
+    // Verificar si el numero de referencia ya existe
+    const { data: existingPurchase, error: existingPurchaseError } = await supabase
+        .from("compras")
+        .select("id")
+        .eq("numero_referencia", numeroReferencia);
+
+    if (existingPurchaseError) {
+        throw new Error("Error al verificar la referencia de pago.");
+    }
+    
+    if (existingPurchase && existingPurchase.length > 0) {
+        return NextResponse.json({ error: "Este número de referencia ya ha sido utilizado. Por favor, revisa tu información o contacta a soporte." }, { status: 409 });
+    }
+
+    // --- 2.3. SUBIDA DEL ARCHIVO A SUPABASE STORAGE ---
     const fileExtension = comprobantePago.name.split(".").pop();
     const fileName = `${uuidv4()}.${fileExtension}`;
 
@@ -67,11 +82,7 @@ export async function POST(request: NextRequest) {
 
     const fileUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/comprobantes/${fileName}`;
 
-    // --- 2.3. INSERCIÓN EN LA BASE DE DATOS (usuarios y compras) ---
-    // Iniciar una transacción para asegurar la consistencia de los datos.
-    // Aunque Supabase no tiene transacciones nativas para DML, podemos simularla
-    // y hacer un 'rollback' manual si algo falla.
-
+    // --- 2.4. INSERCIÓN EN LA BASE DE DATOS (usuarios y compras) ---
     try {
       // Intentar encontrar si el usuario ya existe por su email
       const { data: userData, error: userFetchError } = await supabase
@@ -117,7 +128,7 @@ export async function POST(request: NextRequest) {
         throw new Error("Error al registrar la compra.");
       }
 
-      // --- 2.4. RESPUESTA EXITOSA ---
+      // --- 2.5. RESPUESTA EXITOSA ---
       return NextResponse.json(
         {
           message: "Formulario enviado y archivo subido con éxito.",
@@ -126,7 +137,7 @@ export async function POST(request: NextRequest) {
         { status: 200 }
       );
     } catch (dbError: any) {
-      // --- 2.5. MANEJO DE ERRORES DE BASE DE DATOS CON ROLLBACK ---
+      // --- 2.6. MANEJO DE ERRORES DE BASE DE DATOS CON ROLLBACK ---
       // Si la inserción en 'usuarios' o 'compras' falla, eliminamos el archivo de Storage
       // para evitar datos huérfanos.
       console.error("Error al insertar en la base de datos:", dbError.message);
@@ -134,7 +145,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Error al registrar la información del contacto." }, { status: 500 });
     }
   } catch (error) {
-    // --- 2.6. MANEJO DE ERRORES INESPERADOS ---
+    // --- 2.7. MANEJO DE ERRORES INESPERADOS ---
     console.error("Error inesperado en la API Route:", error);
     return NextResponse.json({ error: "Error interno del servidor." }, { status: 500 });
   }

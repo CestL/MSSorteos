@@ -1,100 +1,98 @@
-// supabase/functions/enviar-codigos/index.ts
+// supabase/functions/send-codes/index.ts
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { Resend } from 'https://esm.sh/resend@3.2.0'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { Resend } from 'https://esm.sh/resend@3.2.0';
+import { v4 as uuidv4 } from 'https://esm.sh/uuid';
 
 // --- 1. CONFIGURACIÓN INICIAL ---
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-)
+);
 
-const resend = new Resend(Deno.env.get('RESEND_API_KEY')!)
-
-// Función para generar un número aleatorio de 4 dígitos (0000-9999)
-const generateNumericalCode = (): string => {
-  const number = Math.floor(Math.random() * 10000);
-  return String(number).padStart(4, '0');
-};
+const resend = new Resend(Deno.env.get('RESEND_API_KEY')!);
 
 // --- 2. LÓGICA PRINCIPAL (CONTROLADOR DE SOLICITUD) ---
 Deno.serve(async (req) => {
   try {
-    const { email, nombre_comprador, tickets_comprados, id } = await req.json();
+    const { compra_id } = await req.json();
 
     // 2.1. VALIDACIÓN DE ENTRADA
-    if (!id || !email || !nombre_comprador || !tickets_comprados) {
-      return new Response(JSON.stringify({ error: 'Datos del disparador incompletos.' }), {
+    if (!compra_id) {
+      return new Response(JSON.stringify({ error: 'ID de compra no recibido del disparador.' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    const numTickets = parseInt(tickets_comprados);
+    // 2.2. OBTENER DATOS DE LA COMPRA Y DEL USUARIO EN UNA SOLA CONSULTA
+    const { data: compraData, error: compraError } = await supabase
+      .from('compras')
+      .select(`
+        id,
+        tickets_comprados,
+        codigos_unicos,
+        usuarios(
+          email,
+          nombre_comprador
+        )
+      `)
+      .eq('id', compra_id)
+      .single();
+
+    if (compraError || !compraData) {
+      console.error('Error al obtener los datos de la compra:', compraError?.message);
+      return new Response(JSON.stringify({ error: 'Fallo al obtener los datos de la compra.' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { tickets_comprados: numTickets, usuarios: { email, nombre_comprador } } = compraData;
+
+    // 2.3. GENERACIÓN Y VERIFICACIÓN DE CÓDIGOS ÚNICOS (MÉTODO OPTIMIZADO)
+    const codesToGenerate = new Set<string>();
     const MAX_TICKETS = 10000;
+    
+    // Primero, obtener todos los códigos existentes de la base de datos
+    const { data: existingCodesData, error: fetchError } = await supabase
+      .from('compras')
+      .select('codigos_unicos');
 
-    // 2.2. VERIFICAR EL LÍMITE TOTAL DE TICKETS GENERADOS
-    const { count: totalTickets, error: countError } = await supabase
-      .from('Contactos')
-      .select('tickets_comprados', { count: 'exact' });
-
-    if (countError) {
-      console.error('Error al contar tickets:', countError.message);
-      return new Response(JSON.stringify({ error: 'Fallo al verificar el límite de tickets.' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    if (fetchError) {
+      console.error('Error al obtener códigos existentes:', fetchError.message);
+      return new Response(JSON.stringify({ error: 'Fallo al verificar códigos existentes.' }), { status: 500 });
     }
-
-    // Se suma la cantidad de tickets_comprados para cada fila para obtener el total.
-    const totalTicketsGenerated = totalTickets.reduce((sum, row) => sum + row.tickets_comprados, 0);
-
-    if (totalTicketsGenerated + numTickets > MAX_TICKETS) {
-      return new Response(JSON.stringify({ error: 'El límite total de 10,000 boletos ha sido alcanzado.' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // --- 3. GENERACIÓN DE CÓDIGOS ÚNICOS ---
-    const uniqueCodes = [];
-    let attempts = 0;
-    const MAX_ATTEMPTS = numTickets * 2; // Para evitar bucles infinitos en caso de alta colisión.
-
-    while (uniqueCodes.length < numTickets && attempts < MAX_ATTEMPTS) {
-      const newCode = generateNumericalCode();
-      
-      // 3.1. VERIFICAR SI EL CÓDIGO YA EXISTE EN LA BASE DE DATOS
-      const { data, error } = await supabase
-        .from('Contactos')
-        .select('id')
-        .contains('codigos_unicos', [newCode]);
-
-      if (error) {
-        console.error('Error al verificar código duplicado:', error.message);
-        attempts++;
-        continue;
+    
+    // Unir todos los códigos existentes en un solo Set para una búsqueda rápida
+    const allExistingCodes = new Set<string>();
+    existingCodesData.forEach(row => {
+      // jsonb se lee como un array, así que iteramos sobre él
+      if (Array.isArray(row.codigos_unicos)) {
+        row.codigos_unicos.forEach(code => allExistingCodes.add(code));
       }
-      
-      // Si el código no existe en la base de datos, lo añadimos a la lista
-      if (data.length === 0) {
-        uniqueCodes.push(newCode);
-      }
-      attempts++;
+    });
+
+    if (allExistingCodes.size + numTickets > MAX_TICKETS) {
+        return new Response(JSON.stringify({ error: `Límite total de ${MAX_TICKETS} boletos alcanzado.` }), { status: 403 });
     }
 
-    if (uniqueCodes.length !== numTickets) {
-      return new Response(JSON.stringify({ error: 'No se pudieron generar códigos únicos suficientes.' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    // Generar nuevos códigos
+    while (codesToGenerate.size < numTickets) {
+        const code = String(Math.floor(Math.random() * MAX_TICKETS)).padStart(4, '0');
+        if (!allExistingCodes.has(code)) {
+            codesToGenerate.add(code);
+            allExistingCodes.add(code); // Agregar al set de existentes para evitar duplicados en la misma ejecución
+        }
     }
 
-    // --- 4. ACTUALIZACIÓN Y ENVÍO DEL CORREO ---
+    const newCodes = Array.from(codesToGenerate);
+
+    // 2.4. ACTUALIZACIÓN DE LA FILA DE LA COMPRA CON LOS NUEVOS CÓDIGOS
     const { error: updateError } = await supabase
-      .from('Contactos')
-      .update({ codigos_unicos: JSON.stringify(uniqueCodes) })
-      .eq('id', id);
+      .from('compras')
+      .update({ codigos_unicos: newCodes })
+      .eq('id', compra_id);
 
     if (updateError) {
       console.error('Error al actualizar códigos:', updateError.message);
@@ -104,10 +102,26 @@ Deno.serve(async (req) => {
       });
     }
     
-    // ... (El resto del código para enviar el correo con Resend es el mismo)
+    // 2.5. ENVÍO DEL CORREO ELECTRÓNICO
+    const sendEmailPromise = resend.emails.send({
+      from: 'onboarding@resend.dev',
+      to: [email],
+      subject: `¡Tus ${newCodes.length} nuevos códigos para el sorteo!`,
+      html: `
+        <p>Hola ${nombre_comprador},</p>
+        <p>Gracias por tu compra. Aquí están tus **${newCodes.length}** nuevos códigos:</p>
+        <ul>
+          ${newCodes.map(code => `<li>${code}</li>`).join('')}
+        </ul>
+        <p>¡Mucha suerte!</p>
+      `,
+    });
     
+    // Manejar el envío de correo de forma asíncrona
+    sendEmailPromise.catch(err => console.error('Error al enviar correo:', err));
+
     return new Response(JSON.stringify({
-      message: 'Códigos generados y correo enviado con éxito.',
+      message: 'Códigos generados y correo en camino.',
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },

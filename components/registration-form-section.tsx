@@ -30,6 +30,9 @@ import { useToast } from "@/hooks/use-toast"
 import { generateWhatsAppUrl } from "@/lib/utils"
 import type { FormData } from "@/lib/types"
 
+// Se importó la librería 'uuid' para generar identificadores únicos.
+import { v4 as uuidv4 } from 'uuid';
+
 export function RegistrationFormSection() {
   // Estados principales del formulario
   // Almacena todos los datos del formulario en un objeto
@@ -213,8 +216,14 @@ export function RegistrationFormSection() {
       formToSend.append("numero_referencia", formData.referenceNumber)
       formToSend.append("tickets_comprados", formData.ticketCount)
 
-      // Agregar el archivo de comprobante
-      formToSend.append("comprobante_pago", proofFile!)
+      // --- CAMBIO CLAVE AQUI ---
+      // Generar un nombre de archivo único y descriptivo
+      const fileExtension = proofFile!.name.split('.').pop();
+      const newFileName = `${formData.referenceNumber}-${uuidv4()}.${fileExtension}`;
+
+      // Agregar el archivo de comprobante con el nuevo nombre
+      formToSend.append("comprobante_pago", proofFile!, newFileName);
+      // --- FIN DEL CAMBIO ---
 
       try {
         // Realizar llamada HTTP al endpoint de la API
@@ -354,8 +363,7 @@ export function RegistrationFormSection() {
           <li>Los tickets se enviarán en un plazo máximo de 24 horas.</li>
           <li>Solo pueden participar personas naturales mayores de 18 años.</li>
           <li>
-            Los premios se entregarán personalmente en el lugar designado para cada sorteo. Solo realizará la entrega en
-            la dirección proporcionada por rifasmiguelsandoval.com
+            Los premios se entregarán personalmente en el lugar designado para cada sorteo. Solo realizará la entrega en la dirección proporcionada por SandovalMiguel.store
           </li>
           <li>
             La compra mínima es de (3) tickets. Los tickets se asignarán aleatoriamente y se enviarán al correo
@@ -363,9 +371,7 @@ export function RegistrationFormSection() {
           </li>
           <li>Los ganadores tienen 72 horas para reclamar su premio.</li>
           <li>
-            Los ganadores aceptan y autorizan la aparición en el material audiovisual del sorteo de
-            Rifasmiguelsandoval.com, incluyendo su presencia en redes sociales y la entrega del premio. Esta condición
-            es obligatoria.
+            Los ganadores aceptan y autorizan la aparición en el material audiovisual del sorteo de SandovalMiguel.store, incluyendo su presencia en redes sociales y la entrega del premio. Esta condición es obligatoria.
           </li>
           <li>
             Debe transferir el monto exacto, no se realizan reembolsos por montos erróneos; de haber una diferencia, se

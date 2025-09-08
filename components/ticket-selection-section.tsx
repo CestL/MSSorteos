@@ -20,9 +20,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { usePayment } from "@/contexts/payment-context"
-import { TICKET_PRICES, TICKET_PRESETS, MINIMUM_TICKETS, PAYMENT_METHODS } from "@/lib/constants"
-import { formatCurrency } from "@/lib/utils"
-import type { TicketPreset } from "@/lib/types"
+import { TICKET_PRICES, TICKET_PRESETS, MINIMUM_TICKETS, PAYMENT_METHODS, formatCurrency, type TicketPreset } from "@/lib/utils"
 
 export function TicketSelectionSection() {
   // Obtener método de pago seleccionado del contexto global

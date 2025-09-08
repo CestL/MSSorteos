@@ -8,7 +8,7 @@
 
 import Image from "next/image"
 import { useState, useEffect } from "react"
-import { IMAGES } from "@/lib/constants"
+import { IMAGES } from "@/lib/utils"
 
 export function HeroSection() {
   const [isScrolled, setIsScrolled] = useState(false)

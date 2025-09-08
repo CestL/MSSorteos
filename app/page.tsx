@@ -12,13 +12,18 @@ import { TicketSelectionSection } from "@/components/ticket-selection-section"
 import { RegistrationFormSection } from "@/components/registration-form-section"
 import { FooterSection } from "@/components/footer-section"
 
+// Fixed: Moved viewport configuration to separate export as recommended by Next.js 15
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+}
+
 export const metadata: Metadata = {
   title: "Sorteo de 3 Millones - Gana Millones en Sorteos VIP | Miguel Sandoval",
   description:
     "Participa en nuestro sorteo de 3 millones de pesos chilenos. Compra tus tickets, realiza tu pago y completa tu registro para ganar millones. Sorteos seguros y confiables con Miguel Sandoval.",
   keywords:
     "sorteo, 3 millones, millones, sorteos, rifa, pesos chilenos, participar, ganar dinero, Miguel Sandoval, sorteos VIP, ganar millones, rifas millonarias",
-  viewport: "width=device-width, initial-scale=1",
   openGraph: {
     title: "Sorteo de 3 Millones - Gana Millones | Miguel Sandoval",
     description: "Participa en sorteos millonarios y gana 3 millones de pesos. Sorteos seguros y confiables.",

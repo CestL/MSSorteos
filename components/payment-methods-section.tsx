@@ -20,8 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Copy, Check } from "lucide-react"
 import { useClipboard } from "@/hooks/use-clipboard"
 import { usePayment } from "@/contexts/payment-context"
-import { PAYMENT_METHODS, ACCOUNT_DETAILS } from "@/lib/constants"
-import type { PaymentMethod } from "@/lib/types"
+import { PAYMENT_METHODS, ACCOUNT_DETAILS, type PaymentMethod } from "@/lib/utils"
 
 export function PaymentMethodsSection() {
   // Obtener estado y funciones del contexto de pago

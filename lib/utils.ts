@@ -14,7 +14,148 @@
 
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import type { Currency } from "./types"
+
+// Types for the application
+export type Currency = "CLP" | "USD"
+export type PaymentMethodId = "mercadopago" | "tenpo" | "santander" | "zelle"
+
+export interface FormData {
+  buyerName: string
+  email: string
+  phone: string
+  referenceNumber: string
+  ticketCount: string
+}
+
+export interface TicketPreset {
+  readonly label: string
+  readonly value: number
+}
+
+export interface PaymentMethod {
+  readonly id: PaymentMethodId
+  readonly name: string
+  readonly logo: string
+  readonly currency: Currency
+}
+
+export interface AccountDetail {
+  readonly accountNumber?: string
+  readonly rut?: string
+  readonly bank?: string
+  readonly accountType?: string
+  readonly accountHolder?: string
+  readonly name?: string
+  readonly email?: string
+  readonly phone?: string
+  readonly service?: string
+}
+
+export interface SocialLinks {
+  readonly whatsapp: {
+    readonly number: string
+    readonly message: string
+  }
+  readonly instagram: string
+  readonly facebook: string
+}
+
+// Constants for file upload and database integration
+export const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024 // 2MB in bytes (updated to match database constraint)
+export const MAX_FILE_SIZE_MB = 2 // 2MB for display purposes
+export const PAYMENT_RECEIPTS_BUCKET = 'receipts' // Bucket según DATABASE_GUIDE.md
+
+// Ticket pricing and configuration
+export const TICKET_PRICES = {
+  CLP: 800, // Pesos chilenos por ticket
+  USD: 0.8, // Dólares estadounidenses por ticket
+} as const
+
+export const MINIMUM_TICKETS = 3
+
+export const TICKET_PRESETS = [
+  { label: "+3 tickets", value: 3 },
+  { label: "+10 tickets", value: 10 },
+  { label: "+20 tickets", value: 20 },
+  { label: "+50 tickets", value: 50 },
+  { label: "+100 tickets", value: 100 },
+] as const
+
+// Payment methods configuration
+export const PAYMENT_METHODS = [
+  {
+    id: "mercadopago",
+    name: "Mercado Pago",
+    logo: "/images/mercadopago.png",
+    currency: "CLP" as const,
+  },
+  {
+    id: "tenpo",
+    name: "Cuenta Tenpo",
+    logo: "/images/tenpo.jpeg",
+    currency: "CLP" as const,
+  },
+  {
+    id: "santander",
+    name: "Banco Santander",
+    logo: "/images/santander.png",
+    currency: "CLP" as const,
+  },
+  {
+    id: "zelle",
+    name: "Zelle",
+    logo: "/images/zelle-logo.png",
+    currency: "USD" as const,
+  },
+] as const
+
+// Account details for payment methods
+export const ACCOUNT_DETAILS = {
+  mercadopago: {
+    accountNumber: "1020788385",
+    rut: "26178351-7",
+    bank: "Mercado Pago",
+    accountType: "Vista",
+    accountHolder: "Miguel Angel Sandoval Silvera",
+  },
+  tenpo: {
+    name: "MIGUEL ANGEL SANDOVAL SILVERA",
+    rut: "26178351-7",
+    bank: "Banco prepago Tenpo",
+    accountType: "Cuenta Vista",
+    accountNumber: "111126178351",
+    email: "sandovalmiguel888@gmail.com",
+  },
+  santander: {
+    name: "Miguel Angel Sandoval Silvera",
+    rut: "26178351-7",
+    accountType: "Cuenta Corriente",
+    accountNumber: "0 000 81 08954 0",
+    bank: "Banco Santander",
+    email: "sandovalmiguel888@gmail.com",
+  },
+  zelle: {
+    name: "Jehonadad Samuel Sulbaran Díaz",
+    phone: "7208712756",
+    service: "Zelle",
+  },
+} as const
+
+// Social media links
+export const SOCIAL_LINKS = {
+  whatsapp: {
+    number: "56949077188",
+    message: "Hola! Me interesa participar en el sorteo de 3M",
+  },
+  instagram: "https://www.instagram.com/sandoval__miguel?igsh=MXVoMjAzMHJ6bW5tdg==",
+  facebook: "https://www.facebook.com/share/1CtheYuW2E/",
+} as const
+
+// Image paths
+export const IMAGES = {
+  logo: "/images/logo.png",
+  heroBackground: "/images/hero-background.jpeg",
+} as const
 
 /**
  * Función para combinar clases CSS de manera inteligente

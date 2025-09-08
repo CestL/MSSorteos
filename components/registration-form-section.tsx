@@ -14,6 +14,7 @@
  * - Sistema de notificaciones personalizado (sin alerts del navegador)
  */
 
+<<<<<<< Updated upstream
 "use client"
 
 import type React from "react"
@@ -29,6 +30,23 @@ import { AlertTriangle, Upload, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { generateWhatsAppUrl } from "@/lib/utils"
 import type { FormData } from "@/lib/types"
+=======
+"use client";
+
+import type React from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, Upload, AlertCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { generateWhatsAppUrl, type FormData, MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "@/lib/utils"; // Import from existing utils file
+import { v4 as uuidv4 } from "uuid";
+>>>>>>> Stashed changes
 
 export function RegistrationFormSection() {
   // Estados principales del formulario
@@ -93,6 +111,7 @@ export function RegistrationFormSection() {
         return
       }
 
+<<<<<<< Updated upstream
       // Validación de tamaño de archivo (3MB máximo)
       const maxFileSize = 3 * 1024 * 1024 // 3 MB en bytes
 
@@ -108,9 +127,17 @@ export function RegistrationFormSection() {
         e.target.value = ""
 
         // Mostrar notificación toast
+=======
+      // Updated to use 2MB limit as per database constraint in payment_receipt_files table
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+        setValidationErrors([`El archivo seleccionado (${fileSizeInMB}MB) supera el límite de ${MAX_FILE_SIZE_MB}MB`]);
+        setProofFile(null);
+        e.target.value = "";
+>>>>>>> Stashed changes
         toast({
           title: "Archivo demasiado grande",
-          description: `El archivo seleccionado (${fileSizeInMB}MB) supera el límite de 3MB. Por favor, selecciona un archivo más pequeño.`,
+          description: `El archivo seleccionado (${fileSizeInMB}MB) supera el límite de ${MAX_FILE_SIZE_MB}MB. Por favor, selecciona un archivo más pequeño.`,
           variant: "destructive",
         })
         return
@@ -380,6 +407,7 @@ export function RegistrationFormSection() {
     </div>
   )
 
+
   return (
     <section aria-label="Formulario de registro para sorteo de millones">
       <Card className="border-gray-600 bg-gray-800">
@@ -470,9 +498,13 @@ export function RegistrationFormSection() {
                   </div>
                 )}
               </div>
+<<<<<<< Updated upstream
 
               {/* Información sobre requisitos del archivo */}
               <p className="text-xs text-red-400">Este campo es obligatorio. Tamaño máximo: 3MB</p>
+=======
+              <p className="text-xs text-red-400">{`Este campo es obligatorio. Tamaño máximo: ${MAX_FILE_SIZE_MB}MB`}</p>
+>>>>>>> Stashed changes
             </div>
 
             {/* Campo de número de tickets */}
@@ -526,5 +558,10 @@ export function RegistrationFormSection() {
         </CardContent>
       </Card>
     </section>
+<<<<<<< Updated upstream
   )
 }
+=======
+  );
+}
+>>>>>>> Stashed changes

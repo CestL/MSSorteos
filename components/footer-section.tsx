@@ -15,8 +15,7 @@
 
 import { Button } from "@/components/ui/button"
 import { MessageCircle, Instagram } from "lucide-react"
-import { SOCIAL_LINKS } from "@/lib/constants"
-import { generateWhatsAppUrl } from "@/lib/utils"
+import { SOCIAL_LINKS, generateWhatsAppUrl } from "@/lib/utils"
 
 export function FooterSection() {
   /**

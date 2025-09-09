@@ -84,7 +84,7 @@ export function FooterSection() {
         <div className="text-center border-t border-yellow-400 pt-6 sm:pt-8">
           {/* Información de copyright principal */}
           <p className="text-xs text-yellow-400 sm:text-sm">
-            © 2025 Sorteos Miguel Sandoval - Todos los derechos reservados
+            © 2025 sandovalmiguel.store - Todos los derechos reservados
           </p>
 
           {/* Tagline adicional para SEO */}
